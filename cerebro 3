@@ -1,0 +1,225 @@
+import json
+import random  # Para agregar variabilidad en respuestas
+from transformers import pipeline  # Para generar respuestas dinámicas
+import re  # Para procesamiento de texto más específico (e.g., sinónimos)
+
+# Base de conocimiento ampliada y más específica para C2 (Primeros Auxilios No Emergentes)
+# Cada entrada incluye: descripción detallada, pasos específicos, variaciones (e.g., por edad), consejos preventivos, y refuerzos.
+KNOWLEDGE_BASE = {
+    "herida_menor": {
+        "descripcion": "Las heridas menores incluyen cortes, rasguños o abrasiones superficiales que no involucran sangrado grave ni riesgo inmediato.",
+        "pasos": [
+            "1. Lava la herida con agua y jabón suave para eliminar suciedad y bacterias.",
+            "2. Aplica un antiséptico como alcohol isopropílico diluido o peróxido de hidrógeno, pero evita si hay irritación.",
+            "3. Cubre con una venda estéril para protegerla y promover la curación.",
+            "4. Monitorea por signos de infección como enrojecimiento o pus; si aparecen, consulta a un médico.",
+            "5. Cambia el vendaje diariamente y mantén la zona seca."
+        ],
+        "variaciones": {
+            "niños": "Para niños, usa vendas con dibujos para hacer el proceso menos estresante y explica cada paso de manera simple.",
+            "adultos": "En adultos, enfatiza la higiene para prevenir complicaciones en personas con diabetes o inmunodeficiencias."
+        },
+        "consejos_preventivos": [
+            "Usa guantes o protectores al manejar objetos afilados.",
+            "Mantén un kit de primeros auxilios en casa y en el auto.",
+            "Vacúnate contra el tétano si no lo has hecho recientemente."
+        ],
+        "refuerzo": "¡Excelente que estés aprendiendo con Helpie! Esto refuerza hábitos de autocuidado, pero recuerda: si la herida empeora, ve a un profesional médico."
+    },
+    "picadura_insecto": {
+        "descripcion": "Picaduras de insectos como mosquitos, abejas o arañas pueden causar hinchazón, picazón o dolor, pero no suelen ser emergencias a menos que haya alergia.",
+        "pasos": [
+            "1. Limpia el área con agua y jabón para reducir el riesgo de infección.",
+            "2. Aplica una compresa fría (hielo envuelto en un paño) por 10-15 minutos para reducir la hinchazón.",
+            "3. Usa una crema anti-picazón o antihistamínicos orales si el picor es intenso, siguiendo las instrucciones del envase.",
+            "4. Si hay un aguijón, retíralo con pinzas esterilizadas sin apretar para evitar inyectar más veneno.",
+            "5. Evita rascarse para prevenir infecciones secundarias y monitorea por reacciones alérgicas."
+        ],
+        "variaciones": {
+            "niños": "En niños, aplica cremas suaves y supervisa para reacciones; distraélos con juegos para evitar rascado.",
+            "adultos": "Para adultos con historial de alergias, lleva un EpiPen y consulta a un alergista para pruebas."
+        },
+        "consejos_preventivos": [
+            "Usa repelentes de insectos con DEET en áreas infestadas.",
+            "Viste ropa de manga larga en exteriores.",
+            "Mantén tu hogar libre de mosquitos eliminando agua estancada."
+        ],
+        "refuerzo": "Helpie te ayuda a construir confianza en el autocuidado diario. Practica estas técnicas en simulacros, pero nunca ignores síntomas persistentes; consulta a un experto."
+    },
+    "dolor_muscular": {
+        "descripcion": "Dolores musculares comunes pueden surgir de ejercicio, estrés o posturas incorrectas, y se tratan con métodos no invasivos para alivio.",
+        "pasos": [
+            "1. Descansa el músculo afectado y evita actividades que agraven el dolor.",
+            "2. Aplica calor (toallas calientes) o frío (compresas) alternadamente para reducir inflamación.",
+            "3. Masajea suavemente el área con lociones antiinflamatorias, como aquellas con mentol.",
+            "4. Toma analgésicos de venta libre como ibuprofeno, siguiendo la dosis recomendada y considerando contraindicaciones.",
+            "5. Estira lentamente el músculo después de 24-48 horas para promover la recuperación."
+        ],
+        "variaciones": {
+            "niños": "En niños, enfócate en descanso y juegos ligeros; evita medicamentos sin supervisión médica.",
+            "adultos": "Para adultos mayores, combina con ejercicios de bajo impacto y consulta por artritis subyacente."
+        },
+        "consejos_preventivos": [
+            "Calienta antes de hacer ejercicio con estiramientos dinámicos.",
+            "Mantén una postura correcta durante el trabajo sedentario.",
+            "Hidrátrate y come alimentos ricos en potasio para prevenir calambres."
+        ],
+        "refuerzo": "¡Genial que uses Helpie para reforzar tu salud! Este conocimiento te empodera, pero si el dolor persiste más de unos días, busca atención profesional."
+    },
+    "torcedura_tobillo": {
+        "descripcion": "Una torcedura de tobillo es una lesión común no emergente que involucra ligamentos estirados, causando hinchazón y dolor moderado.",
+        "pasos": [
+            "1. Descansa el tobillo y evita poner peso sobre él durante las primeras 48 horas.",
+            "2. Aplica la regla RICE: Rest (descanso), Ice (hielo por 15-20 minutos), Compression (vendaje compresor), Elevation (elevar el tobillo).",
+            "3. Usa un vendaje elástico para estabilidad, pero no lo aprietes demasiado para evitar cortar la circulación.",
+            "4. Muévete gradualmente con ejercicios de fortalecimiento una vez que el dolor disminuya.",
+            "5. Usa calzado de soporte para prevenir recaídas."
+        ],
+        "variaciones": {
+            "niños": "En niños activos, combina con juegos de rehabilitación y supervisa para evitar reinicio prematuro.",
+            "adultos": "Para adultos con sobrepeso, integra pérdida de peso y ejercicios de equilibrio."
+        },
+        "consejos_preventivos": [
+            "Fortalece los tobillos con ejercicios como círculos con el pie.",
+            "Usa calzado adecuado en actividades deportivas.",
+            "Evita superficies irregulares si tienes historial de torceduras."
+        ],
+        "refuerzo": "Helpie está orgullosa de tu proactividad en el aprendizaje. Recuerda, estas técnicas son para refuerzo personal, pero consulta a un fisioterapeuta para casos crónicos."
+    },
+    "prevencion_enfermedades_comunes": {
+        "descripcion": "La prevención de enfermedades comunes como resfriados o gripe involucra hábitos diarios para fortalecer el sistema inmunológico.",
+        "pasos": [
+            "1. Lava las manos frecuentemente con agua y jabón por al menos 20 segundos.",
+            "2. Mantén una dieta equilibrada rica en vitaminas C y D, como frutas y verduras.",
+            "3. Duerme lo suficiente (7-9 horas para adultos) para apoyar la recuperación.",
+            "4. Evita el contacto con personas enfermas y usa mascarillas en entornos públicos si es necesario.",
+            "5. Vacúnate anualmente contra la gripe y mantén chequeos regulares."
+        ],
+        "variaciones": {
+            "niños": "Enseña a niños rutinas de higiene a través de juegos y recompensas.",
+            "adultos": "Para adultos, integra ejercicio moderado y manejo del estrés para inmunidad óptima."
+        },
+        "consejos_preventivos": [
+            "Ventila espacios cerrados para reducir gérmenes.",
+            "Bebe suficiente agua para mantener la hidratación.",
+            "Monitorea síntomas tempranos y actúa rápidamente."
+        ],
+        "refuerzo": "¡Fantástico progreso con Helpie! Este enfoque preventivo fortalece tu rutina diaria, pero siempre verifica con un médico para vacunas y chequeos."
+    },
+    # Puedes agregar más entradas para hacerla aún más específica
+}
+
+# Inicializar el pipeline de IA, como en C1
+try:
+    generator = pipeline('text-generation', model='distilgpt2')  # Modelo ligero
+except Exception as e:
+    print(f"Error al cargar el modelo: {e}. Usando respuestas estáticas.")
+    generator = None
+
+class C2_Brain:
+    """
+    Clase para el cerebro C2: Primeros Auxilios No Emergentes.
+    Esta clase es más específica y extensa que C1, con razonamiento avanzado:
+    - Detecta sinónimos y preguntas relacionadas para mayor precisión.
+    - Genera respuestas detalladas con secciones adicionales (e.g., variaciones, consejos preventivos).
+    - Simula aprendizaje mediante logging detallado y opciones para actualizar la base.
+    - Respuestas más largas: Incluye explicaciones, ejemplos y refuerzos éticos.
+    """
+    
+    def __init__(self):
+        self.name = "C2 - Primeros Auxilios No Emergentes"
+        self.synonyms = {  # Diccionario para razonamiento más específico
+            "corte": ["herida", "rasguño", "abrasion"],
+            "picadura": ["mordida", "insecto", "abeja"],
+            "dolor": ["molestia", "calambre", "muscular"],
+            "torcedura": ["esguince", "tobillo"],
+            "prevencion": ["enfermedad", "resfriado", "gripe"]
+        }
+    
+    def process_query(self, query):
+        """
+        Procesa una consulta de manera más específica y extensa.
+        Entrada: query (str) - Ej.: "¿Cómo tratar un corte menor?" o "¿Qué hacer con picaduras?"
+        Salida: response (str) - Respuesta detallada y educativa.
+        
+        Lógica extendida:
+        1. Normaliza y detecta el tema usando sinónimos para mayor precisión.
+        2. Razonamiento: Busca en la base, genera respuesta con todas las secciones.
+        3. Añade variabilidad: Usa IA para frases únicas y personalizadas.
+        4. Incluye secciones adicionales: Variaciones, consejos preventivos.
+        5. Simula aprendizaje: Loggea y permite actualizaciones.
+        """
+        normalized_query = query.lower()
+        topic = None
+        
+        # Paso 1: Detección más específica con sinónimos
+        for key, syns in self.synonyms.items():
+            if any(syn in normalized_query for syn in syns + [key]):
+                topic = key  # e.g., "corte" para "herida_menor"
+                break
+        
+        if topic:
+            # Mapear a la clave real en KNOWLEDGE_BASE
+            topic_mapping = {
+                "corte": "herida_menor",
+                "picadura": "picadura_insecto",
+                "dolor": "dolor_muscular",
+                "torcedura": "torcedura_tobillo",
+                "prevencion": "prevencion_enfermedades_comunes"
+            }
+            full_topic = topic_mapping.get(topic)
+            
+            if full_topic in KNOWLEDGE_BASE:
+                data = KNOWLEDGE_BASE[full_topic]
+                
+                # Paso 2: Construir respuesta detallada
+                response = f"Descripción detallada: {data['descripcion']}\n\n"
+                response += "Pasos recomendados:\n"
+                for step in data['pasos']:
+                    response += f"- {step}\n"
+                
+                response += "\nVariaciones específicas:\n"
+                for var_type, var_desc in data['variaciones'].items():
+                    response += f"- Para {var_type}: {var_desc}\n"
+                
+                response += "\nConsejos preventivos:\n"
+                for tip in data['consejos_preventivos']:
+                    response += f"- {tip}\n"
+                
+                response += f"\n{data['refuerzo']}"
+                
+                # Paso 3: Añadir variabilidad con IA para hacerla única y más larga
+                if generator:
+                    prompt = f"Basado en: {query}, agrega un consejo educativo único y específico sobre {full_topic}, incluyendo un ejemplo práctico."
+                    try:
+                        generated_text = generator(prompt, max_length=150, num_return_sequences=1)[0]['generated_text']
+                        unique_section = generated_text.strip()  # Extraer texto generado
+                        response += f"\nSección única de Helpie: {unique_section}. Recuerda, esto es para refuerzo personal."
+                    except:
+                        pass  # Fallback
+                
+                # Paso 4: Simular aprendizaje más específico (e.g., logging detallado)
+                print(f"[C2] Aprendiendo de consulta: {query}. Actualizando conocimiento sobre {full_topic}.")
+                # En un escenario real, podrías agregar: self.update_knowledge(full_topic, query) para modificar KNOWLEDGE_BASE
+                
+                return response
+            else:
+                return "No tengo detalles específicos sobre este tema. Soy C2, enfocado en no emergentes."
+        else:
+            return "No reconozco este tema. Por favor, sé más específico o consulta con el supervisor para otro cerebro."
+    
+    # Método adicional para simular aprendizaje (más específico que en C1)
+    def update_knowledge(self, topic, new_info):
+        """Simula aprendizaje: Actualiza la base de conocimiento con nueva información."""
+        if topic in KNOWLEDGE_BASE:
+            KNOWLEDGE_BASE[topic]['pasos'].append(new_info)  # Ejemplo: Agrega un nuevo paso
+            print(f"[C2] Conocimiento actualizado para {topic}.")
+        else:
+            print(f"[C2] Tema no encontrado para actualización.")
+
+# Ejemplo de uso
+if __name__ == "__main__":
+    c2 = C2_Brain()
+    user_query = input("Haz una pregunta sobre primeros auxilios no emergentes: ")
+    response = c2.process_query(user_query)
+    print(f"Respuesta de {c2.name}:\n{response}")
