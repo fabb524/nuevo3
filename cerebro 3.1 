@@ -1,0 +1,132 @@
+import openai
+import langdetect
+from googletrans import Translator
+import re  # Para procesamiento de texto básico
+
+# Configuración inicial
+openai.api_key = 'your_openai_api_key'  # Reemplaza con tu clave
+translator = Translator()
+
+# Clase base para los cerebros
+class Brain:
+    def respond(self, query):
+        raise NotImplementedError("Cada cerebro debe implementar su propia lógica de respuesta.")
+
+# C1: Primeros auxilios emergentes (especialista en situaciones urgentes como heridas, ahogamientos, etc.)
+class C1_Emergencias(Brain):
+    def respond(self, query):
+        prompt = f"Como experto en primeros auxilios emergentes para Helpie, razona paso a paso sobre: '{query}'. Enfócate en enseñar técnicas seguras, como evaluar la escena, llamar a emergencias y aplicar primeros auxilios básicos. Recuerda: soy un ayudante educativo, no reemplazo a profesionales. Proporciona una respuesta única, detallada y correcta."
+        response = openai.Completion.create(engine="text-davinci-003", prompt=prompt, max_tokens=300, temperature=0.5)
+        return response.choices[0].text.strip()
+
+# C2: Primeros auxilios no emergentes (especialista en situaciones no urgentes como quemaduras menores, picaduras, etc.)
+class C2_NoEmergencias(Brain):
+    def respond(self, query):
+        prompt = f"Como experto en primeros auxilios no emergentes para Helpie, razona paso a paso sobre: '{query}'. Enseña técnicas preventivas y de cuidado, como limpieza de heridas o manejo de alergias. Asegúrate de que la respuesta sea única, educativa y enfatice consultar a un profesional. No reemplazo a nadie."
+        response = openai.Completion.create(engine="text-davinci-003", prompt=prompt, max_tokens=300, temperature=0.5)
+        return response.choices[0].text.strip()
+
+# C3: Primeros auxilios psicológicos (especialista en apoyo emocional, estrés, ansiedad)
+class C3_Psicologicos(Brain):
+    def respond(self, query):
+        prompt = f"Como experto en primeros auxilios psicológicos para Helpie, razona paso a paso sobre: '{query}'. Enseña técnicas como respiración profunda o escucha activa, pero siempre insiste en buscar ayuda profesional. Respuesta única, correcta y reforzadora."
+        response = openai.Completion.create(engine="text-davinci-003", prompt=prompt, max_tokens=300, temperature=0.5)
+        return response.choices[0].text.strip()
+
+# C4: Análisis de videos y fotos (especialista en analizar descripciones de técnicas visuales)
+class C4_Analisis(Brain):
+    def respond(self, query):
+        prompt = f"Como experto en análisis de videos y fotos para Helpie, razona paso a paso sobre: '{query}'. Analiza minuciosamente cada técnica descrita (por ejemplo, pasos en una CPR), identificando errores comunes y cómo corregirlos. Enfócate en enseñanza visual y correcta, sin reemplazar a profesionales."
+        response = openai.Completion.create(engine="text-davinci-003", prompt=prompt, max_tokens=400, temperature=0.5)
+        return response.choices[0].text.strip()
+
+# C5: Información de hospitales, excepciones, números de emergencia, etc.
+class C5_Informacion(Brain):
+    def respond(self, query):
+        prompt = f"Como experto en información de hospitales y emergencias para Helpie, razona paso a paso sobre: '{query}'. Proporciona datos como números de emergencia (ej. 911 en EE.UU.), direcciones de hospitales o excepciones legales, pero siempre dirige al usuario a profesionales. Respuesta educativa y única."
+        response = openai.Completion.create(engine="text-davinci-003", prompt=prompt, max_tokens=300, temperature=0.5)
+        return response.choices[0].text.strip()
+
+# C6: Idioma (detecta y traduce)
+class C6_Idioma(Brain):
+    def detect_and_translate(self, query, target_lang='en'):
+        try:
+            detected_lang = langdetect.detect(query)
+        except:
+            detected_lang = 'en'  # Fallback a inglés si no se detecta
+        if detected_lang != target_lang:
+            translated_query = translator.translate(query, dest=target_lang).text
+            return translated_query, detected_lang  # Retorna la consulta traducida y el idioma original
+        return query, detected_lang
+
+# Supervisor: Clasifica la pregunta y decide qué cerebros usar
+class Supervisor:
+    def __init__(self):
+        self.brains = {
+            'c1': C1_Emergencias(),
+            'c2': C2_NoEmergencias(),
+            'c3': C3_Psicologicos(),
+            'c4': C4_Analisis(),
+            'c5': C5_Informacion(),
+            'c6': C6_Idioma()  # C6 se usa directamente en el flujo
+        }
+    
+    def classify(self, query):
+        query_lower = query.lower()
+        brains_to_use = []
+        
+        if re.search(r'emergencia|urgente|ahogamiento|herida grave', query_lower):
+            brains_to_use.append('c1')  # Primeros auxilios emergentes
+        if re.search(r'quemada|picadura|alergia|no urgente', query_lower):
+            brains_to_use.append('c2')  # Primeros auxilios no emergentes
+        if re.search(r'estres|ansiedad|emocional|psicologico', query_lower):
+            brains_to_use.append('c3')  # Primeros auxilios psicológicos
+        if re.search(r'video|fotos|tecnica|analisis', query_lower):
+            brains_to_use.append('c4')  # Análisis de videos y fotos
+        if re.search(r'hospital|emergencia|numero|excepcion', query_lower):
+            brains_to_use.append('c5')  # Información de hospitales
+        
+        # Si no coincide nada, podrías agregar un cerebro por defecto, pero por ahora retornamos vacío
+        return brains_to_use
+
+# Orquestador: Junta las respuestas de los cerebros en una sola
+class Orquestador:
+    def orchestrate(self, responses):
+        if not responses:
+            return "Lo siento, no puedo ayudar con eso. Por favor, consulta a un profesional de la salud."
+        combined_response = "Respuesta de Helpie: " + " ".join([f"[{brain}]: {resp}" for brain, resp in responses])
+        return f"{combined_response}. Recuerda, soy Helpie, aquí para enseñarte y reforzar, no para reemplazar a expertos."
+
+# Función principal para el flujo completo
+def main():
+    user_query = input("¡Hola! Soy Helpie, tu asistente para primeros auxilios. ¿En qué puedo ayudarte? ")
+    
+    # Paso 1: Procesar idioma con C6
+    c6 = C6_Idioma()
+    translated_query, original_lang = c6.detect_and_translate(user_query)
+    
+    # Paso 2: Supervisor clasifica la pregunta
+    supervisor = Supervisor()
+    brains_to_use = supervisor.classify(translated_query)
+    
+    responses = []  # Lista de tuplas (cerebro, respuesta)
+    
+    # Paso 3: Enviar a los cerebros necesarios
+    for brain_key in brains_to_use:
+        if brain_key in supervisor.brains and brain_key != 'c6':  # C6 ya se usó
+            response = supervisor.brains[brain_key].respond(translated_query)
+            responses.append((brain_key, response))  # Almacena la respuesta con el cerebro
+    
+    # Paso 4: Orquestador combina las respuestas
+    orquestador = Orquestador()
+    final_response = orquestador.orchestrate(responses)
+    
+    # Traducir la respuesta final de vuelta al idioma original si es necesario
+    if original_lang != 'en':
+        final_response_translated = translator.translate(final_response, dest=original_lang).text
+        print(final_response_translated)
+    else:
+        print(final_response)
+
+if __name__ == "__main__":
+    main()
