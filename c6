@@ -1,214 +1,96 @@
-import langdetect  # Para detección de idioma
-from googletrans import Translator  # Para traducción
-from langchain.llms import OpenAI  # Para razonamiento de IA
-from langchain.prompts import PromptTemplate  # Para prompts personalizados
-import json  # Para memoria y datos persistentes
-import os  # Para manejar archivos
-import spacy  # Para NLP avanzado en el Supervisor
-import pandas as pd  # Para manejar datos de términos médicos
-from collections import defaultdict  # Para conteo en memoria
+# Importar las librerías necesarias
+import langdetect  # Para detectar el idioma
+from deep_translator import GoogleTranslator  # Para traducción (usa Google Translate API)
+import logging  # Para registrar errores y depuración
 
-# Configuración global
-API_KEY = "tu_clave_de_openai"  # Reemplaza con tu clave real
-llm = OpenAI(openai_api_key=API_KEY)  # Inicializa el modelo de IA
-translator = Translator()  # Inicializa el traductor
-MEMORY_FILE = "helpie_memory.json"  # Archivo para memoria persistente
-TERMINOS_MEDICOS_FILE = "terminos_medicos.json"  # Archivo para base de datos de términos médicos
+class Brain6:
+    """
+    Clase para el Cerebro 6 (c6): Especialista en idiomas con enfoque en términos médicos.
+    - Detecta el idioma de un texto.
+    - Traduce textos, priorizando términos médicos para mantener precisión y naturalidad.
+    - Integra con el supervisor y orquestador: Recibe texto, lo procesa y devuelve resultados.
+    - Enfoque educativo: Añade breves notas educativas para términos médicos sin alterar el flujo.
+    - No reemplaza a profesionales; solo enseña y refuerza.
+    """
 
-# Cargar o inicializar datos
-if not os.path.exists(TERMINOS_MEDICOS_FILE):
-    # Base de datos simple de términos médicos (ejemplo: en inglés-español)
-    terminos_medicos = {
-        "heart attack": {"es": "ataque al corazón", "fr": "crise cardiaque"},
-        "fracture": {"es": "fractura", "fr": "fracture"},
-        "CPR": {"es": "RCP", "fr": "CPR"}
-    }
-    with open(TERMINOS_MEDICOS_FILE, 'w') as f:
-        json.dump(terminos_medicos, f)
-else:
-    with open(TERMINOS_MEDICOS_FILE, 'r') as f:
-        terminos_medicos = json.load(f)
-
-nlp = spacy.load("en_core_web_sm")  # Carga modelo de spaCy para NLP
-
-class Cerebro:
-    """Clase base para todos los cerebros. Cada uno es especialista en su área y genera respuestas educativas, paso a paso."""
-    def procesar(self, consulta, idioma, c6):
-        raise NotImplementedError("Debe implementar el método procesar.")
-    
-    def generar_respuesta_educativa(self, consulta, idioma):
-        # Método auxiliar para hacer respuestas únicas: Paso a paso, con ejemplos y recordatorios
-        prompt = PromptTemplate.from_template(
-            "Genera una respuesta educativa sobre {consulta} en {idioma}. Incluye pasos detallados, ejemplos prácticos, y un recordatorio de consultar a un profesional. Mantén un tono natural y reforzante."
-        )
-        respuesta = llm(prompt.format(consulta=consulta, idioma=idioma))
-        return respuesta.strip()
-
-class C1(Cerebro):  # Primeros auxilios emergentes
-    def procesar(self, consulta, idioma, c6):
-        consulta_traducida = c6.traducir(consulta, destino='en')
-        respuesta_educativa = self.generar_respuesta_educativa(consulta_traducida, idioma)
-        return f"C1 (Emergentes): {respuesta_educativa}. Ejemplo: Si es una hemorragia, aplica presión y llama al 911. (Adaptado a {idioma})"
-
-class C2(Cerebro):  # Primeros auxilios no emergentes
-    def procesar(self, consulta, idioma, c6):
-        consulta_traducida = c6.traducir(consulta, destino='en')
-        respuesta_educativa = self.generar_respuesta_educativa(consulta_traducida, idioma)
-        return f"C2 (No emergentes): {respuesta_educativa}. Por ejemplo, para un esguince: Reposo, Hielo, Compresión, Elevación. Refuerza tu aprendizaje practicando. (En {idioma})"
-
-class C3(Cerebro):  # Primeros auxilios psicológicos
-    def procesar(self, consulta, idioma, c6):
-        consulta_traducida = c6.traducir(consulta, destino='en')
-        respuesta_educativa = self.generar_respuesta_educativa(consulta_traducida, idioma)
-        return f"C3 (Psicológicos): {respuesta_educativa}. Recuerda: Ofrece apoyo emocional sin diagnosticar; anima a buscar terapia. (Personalizado para {idioma})"
-
-class C4(Cerebro):  # Análisis de videos y fotos
-    def procesar(self, consulta, idioma, c6):
-        consulta_traducida = c6.traducir(consulta, destino='en')
-        # Simulación de análisis: Usa descripción de texto; en producción, integra visión por computadora
-        respuesta_educativa = self.generar_respuesta_educativa(consulta_traducida, idioma)
-        return f"C4 (Análisis multimedia): Analizando {consulta_traducida}: Verifica técnicas paso a paso, como compresiones en CPR. {respuesta_educativa}. (En {idioma})"
-
-class C5(Cerebro):  # Información de hospitales y emergencias
-    def procesar(self, consulta, idioma, c6):
-        consulta_traducida = c6.traducir(consulta, destino='en')
-        respuesta_educativa = self.generar_respuesta_educativa(consulta_traducida, idioma)
-        return f"C5 (Hospitales y emergencias): {respuesta_educativa}. Números: 911 (EE.UU.), 112 (Europa). Excepciones: Verifica localmente. (Adaptado a {idioma})"
-
-class C6(Cerebro):  # Especialista en idiomas, enfoque en términos médicos
     def __init__(self):
-        self.memory = self.load_memory()  # Carga memoria para aprendizaje
-        self.terminos_medicos = terminos_medicos  # Base de datos de términos
-    
-    def load_memory(self):
-        if os.path.exists(MEMORY_FILE):
-            with open(MEMORY_FILE, 'r') as f:
-                return json.load(f)
-        return defaultdict(int)  # Memoria como contador para términos
-    
-    def save_memory(self, key, value):
-        self.memory[key] += value  # Ejemplo: Contador de usos
-        with open(MEMORY_FILE, 'w') as f:
-            json.dump(dict(self.memory), f)
-    
-    def detectar_idioma(self, texto):
+        self.base_language = 'en'  # Idioma base: Inglés, para integración con otros cerebros
+        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+    def detect_language(self, text):
+        """
+        Detecta el idioma del texto proporcionado.
+        Args:
+            text (str): El texto a analizar.
+        Returns:
+            str: Código del idioma detectado (e.g., 'es' para español, 'en' para inglés).
+        """
         try:
-            return langdetect.detect(texto)
-        except:
-            return 'en'  # Inglés por defecto
-    
-    def traducir(self, texto, destino='en', origen=None):
-        if origen is None:
-            origen = self.detectar_idioma(texto)
-        
-        # Verificación de términos médicos antes de traducir
-        for term_en, translations in self.terminos_medicos.items():
-            if term_en in texto.lower():
-                texto = texto.replace(term_en, translations.get(destino, term_en))  # Usa término preciso
-        
-        prompt_template = PromptTemplate.from_template(
-            "Traduce '{texto}' al {destino} con precisión médica. Mantén naturalidad, contexto educativo, y corrige si es necesario."
-        )
-        prompt = prompt_template.format(texto=texto, destino=destino)
-        traduccion_bruta = translator.translate(texto, dest=destino, src=origen).text
-        respuesta_refinada = llm(prompt)  # Razonamiento de IA para refinar
-        return respuesta_refinada.strip()
-    
-    def analizar_sentimientos(self, texto):
-        # Análisis simple de sentimientos usando spaCy (ampliado)
-        doc = nlp(texto)
-        sentiments = [token.sentiment for token in doc]
-        return sum(sentiments) / len(sentiments)  # Valor numérico simple
-    
-    def procesar(self, consulta, idioma, c6=None):
-        idioma_detectado = self.detectar_idioma(consulta)
-        consulta_traducida = self.traducir(consulta, destino='en')
-        
-        # Aprendizaje: Analiza y guarda frecuencia de términos médicos
-        for term in self.terminos_medicos.keys():
-            if term in consulta_traducida.lower():
-                self.save_memory(term, 1)  # Incrementa contador
-        
-        # Análisis de sentimientos para naturalidad
-        sentimiento = self.analizar_sentimientos(consulta_traducida)
-        if sentimiento < 0:
-            consulta_traducida += " (Notado tono negativo; enfocado en apoyo)."
-        
-        return f"C6: Detectado idioma: {idioma_detectado}. Traducción refinada: '{consulta_traducida}'. Análisis: {sentimiento}. Listo para asistir."
+            return langdetect.detect(text)
+        except langdetect.lang_detect_exception.LangDetectException as e:
+            logging.error(f"Error detectando idioma: {e}. Asumiendo idioma base 'en'.")
+            return self.base_language  # Por defecto, inglés
 
-class Supervisor:
-    def __init__(self):
-        self.nlp = nlp  # Usa spaCy para NLP
-    
-    def decidir_cerebros(self, consulta):
-        doc = self.nlp(consulta.lower())
-        if any(token.text in ['emergencia', 'emergency'] for token in doc):
-            return ['C1']
-        elif any(token.text in ['no emergencia', 'non emergency'] for token in doc):
-            return ['C2']
-        elif any(token.text in ['psicologico', 'psychological'] for token in doc):
-            return ['C3']
-        elif any(token.text in ['video', 'foto', 'image'] for token in doc):
-            return ['C4']
-        elif any(token.text in ['hospital', 'emergency number'] for token in doc):
-            return ['C5']
-        else:
-            return ['C6']  # Por defecto
-
-class Orquestador:
-    def compilar_respuestas(self, respuestas, idioma):
-        respuesta_compilada = "Helpie responde completamente: "
-        for resp in respuestas:
-            respuesta_compilada += resp + " "
-        final_prompt = PromptTemplate.from_template(
-            "Refina esta respuesta para que sea coherente, educativa y natural en {idioma}: {respuesta}"
-        )
-        respuesta_refinada = llm(final_prompt.format(respuesta=respuesta_compilada, idioma=idioma))
-        return f"{respuesta_refinada.strip()}. Recuerda: Soy Helpie, aquí para enseñar; consulta a un profesional."
-
-# Interfaz principal ampliada
-def main():
-    c6 = C6()
-    supervisor = Supervisor()
-    cerebros = {'C1': C1(), 'C2': C2(), 'C3': C3(), 'C4': C4(), 'C5': C5(), 'C6': c6}
-    historial = []  # Historial de conversaciones
-    
-    print("Bienvenido a Helpie, tu IA para primeros auxilios. Escribe 'salir' para terminar, 'historial' para ver conversación, o 'retroalimentacion' para dar feedback.")
-    
-    while True:
-        consulta_usuario = input("Usuario: ")
-        if consulta_usuario.lower() == "salir":
-            break
-        elif consulta_usuario.lower() == "historial":
-            print("Historial:", historial)
-            continue
-        elif consulta_usuario.lower() == "retroalimentacion":
-            feedback = input("Dame tu feedback: ")
-            c6.save_memory("feedback", feedback)  # Aprendizaje simple
-            print("Gracias por tu feedback. Lo usaré para mejorar.")
-            continue
+    def translate(self, text, from_lang=None, to_lang=None):
+        """
+        Traduce el texto de un idioma a otro, con enfoque en términos médicos.
+        - Si from_lang no se especifica, lo detecta automáticamente.
+        - Si to_lang no se especifica, usa el idioma base (inglés).
+        - Para términos médicos, añade una breve nota educativa para reforzar el aprendizaje,
+          manteniendo la naturalidad.
+        Args:
+            text (str): El texto a traducir.
+            from_lang (str, optional): Idioma de origen (e.g., 'es'). Si None, se detecta.
+            to_lang (str, optional): Idioma de destino (e.g., 'en'). Si None, usa el base.
+        Returns:
+            tuple: (texto_traducido, idioma_original) para que el orquestador lo use.
+        """
+        if from_lang is None:
+            from_lang = self.detect_language(text)
         
-        historial.append(consulta_usuario)  # Guarda en historial
+        if to_lang is None:
+            to_lang = self.base_language  # Traducir a inglés por defecto
         
         try:
-            idioma_detectado = c6.detectar_idioma(consulta_usuario)
-            consulta_procesada = c6.traducir(consulta_usuario, destino='en')
+            translator = GoogleTranslator(source=from_lang, target=to_lang)
+            translated_text = translator.translate(text)
             
-            cerebros_seleccionados = supervisor.decidir_cerebros(consulta_procesada)
-            respuestas = []
-            for cerebro in cerebros_seleccionados:
-                if cerebro in cerebros:
-                    respuestas.append(cerebros[cerebro].procesar(consulta_procesada, idioma_detectado, c6))
+            # Enfoque educativo: Detectar y enriquecer términos médicos comunes en contextos de primeros auxilios
+            medical_terms = {
+                'heart attack': 'ataque al corazón',  
+                'CPR': 'RCP (Reanimación Cardiopulmonar)',
+                'fracture': 'fractura',
+                # Añade más términos médicos relevantes para primeros auxilios según sea necesario
+            }
             
-            orquestador = Orquestador()
-            respuesta_final = orquestador.compilar_respuestas(respuestas, idioma_detectado)
-            respuesta_final_traducida = c6.traducir(respuesta_final, destino=idioma_detectado)
+            for term_en, term_other in medical_terms.items():
+                if term_en.lower() in translated_text.lower() and to_lang == self.base_language:
+                    # Añadir nota educativa en el idioma de destino
+                    translated_text = translated_text.replace(term_en, f"{term_en} (un término médico clave; en emergencias, busca ayuda profesional)")
+                elif term_other.lower() in text.lower() and to_lang != from_lang:
+                    # Añadir nota si se traduce de vuelta
+                    translated_text += f" Nota: '{term_other}' significa '{term_en}' en inglés, relacionado con primeros auxilios. Recuerda, esto es educativo, no sustituye a un experto."
             
-            print(f"Helpie: {respuesta_final_traducida}")
-            historial.append(respuesta_final_traducida)  # Actualiza historial
+            logging.info(f"Texto traducido de {from_lang} a {to_lang}: {translated_text}")
+            return translated_text, from_lang  # Devolver el texto traducido y el idioma original
+        
         except Exception as e:
-            error_msg = c6.traducir(f"Error: {str(e)}", destino=idioma_detectado)
-            print(f"Helpie: {error_msg}. Intenta de nuevo.")
+            logging.error(f"Error en la traducción: {e}. Devolviendo texto original.")
+            return text, from_lang  # En caso de error, devolver el original
 
-if __name__ == "__main__":
-    main()
+    def process_input(self, input_text):
+        """
+        Método principal para procesar la entrada: Detecta el idioma y traduce al idioma base si es necesario.
+        Args:
+            input_text (str): El texto de entrada del usuario.
+        Returns:
+            tuple: (texto_procesado, idioma_original) - El texto traducido al idioma base, o el original si ya está en él.
+        """
+        original_lang = self.detect_language(input_text)
+        
+        if original_lang != self.base_language:
+            # Traducir al idioma base
+            processed_text, _ = self.translate(input_text, from_lang=original_lang, to_lang=self.base_language)
+            return processed_text, original_lang  # Devolver texto traducido y idioma original
+        else:
+            return input_text, original_lang  # Ya está en el idioma base, devolver tal cual
