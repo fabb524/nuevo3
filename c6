@@ -31,26 +31,16 @@ class Brain6:
             logging.error(f"Error detectando idioma: {e}. Asumiendo idioma base 'en'.")
             return self.base_language  # Por defecto, inglés
 
-    def translate(self, text, from_lang=None, to_lang=None):
+    def translate(self, text, from_lang, to_lang):
         """
         Traduce el texto de un idioma a otro, con enfoque en términos médicos.
-        - Si from_lang no se especifica, lo detecta automáticamente.
-        - Si to_lang no se especifica, usa el idioma base (inglés).
-        - Para términos médicos, añade una breve nota educativa para reforzar el aprendizaje,
-          manteniendo la naturalidad.
         Args:
             text (str): El texto a traducir.
-            from_lang (str, optional): Idioma de origen (e.g., 'es'). Si None, se detecta.
-            to_lang (str, optional): Idioma de destino (e.g., 'en'). Si None, usa el base.
+            from_lang (str): Idioma de origen.
+            to_lang (str): Idioma de destino.
         Returns:
-            tuple: (texto_traducido, idioma_original) para que el orquestador lo use.
+            str: Texto traducido.
         """
-        if from_lang is None:
-            from_lang = self.detect_language(text)
-        
-        if to_lang is None:
-            to_lang = self.base_language  # Traducir a inglés por defecto
-        
         try:
             translator = GoogleTranslator(source=from_lang, target=to_lang)
             translated_text = translator.translate(text)
@@ -64,33 +54,56 @@ class Brain6:
             }
             
             for term_en, term_other in medical_terms.items():
-                if term_en.lower() in translated_text.lower() and to_lang == self.base_language:
-                    # Añadir nota educativa en el idioma de destino
-                    translated_text = translated_text.replace(term_en, f"{term_en} (un término médico clave; en emergencias, busca ayuda profesional)")
-                elif term_other.lower() in text.lower() and to_lang != from_lang:
-                    # Añadir nota si se traduce de vuelta
-                    translated_text += f" Nota: '{term_other}' significa '{term_en}' en inglés, relacionado con primeros auxilios. Recuerda, esto es educativo, no sustituye a un experto."
-            
+                # Si se traduce al inglés y encuentra el término en inglés, añade nota educativa
+                if to_lang == 'en' and term_en.lower() in translated_text.lower():
+                    translated_text = translated_text.replace(term_en, f"{term_en} (medical term; seek professional help in emergencies)")
+                # Si se traduce del inglés a otro idioma y el término fuente está en el texto original, añade nota educativa
+                elif to_lang != 'en' and term_other.lower() in translated_text.lower():
+                    translated_text = translated_text.replace(term_other, f"{term_other} (término médico; en emergencias, busca ayuda profesional)")
+
             logging.info(f"Texto traducido de {from_lang} a {to_lang}: {translated_text}")
-            return translated_text, from_lang  # Devolver el texto traducido y el idioma original
+            return translated_text
         
         except Exception as e:
             logging.error(f"Error en la traducción: {e}. Devolviendo texto original.")
-            return text, from_lang  # En caso de error, devolver el original
+            return text  # En caso de error, devolver el original
 
     def process_input(self, input_text):
         """
-        Método principal para procesar la entrada: Detecta el idioma y traduce al idioma base si es necesario.
+        Procesa la entrada del usuario:
+        - Detecta el idioma del usuario.
+        - Si es diferente al idioma base, traduce al idioma base.
+        - Si ya está en el idioma base, lo deja igual.
+        - Si el usuario necesita respuesta en su idioma, traduce de vuelta solo si es necesario.
         Args:
             input_text (str): El texto de entrada del usuario.
         Returns:
-            tuple: (texto_procesado, idioma_original) - El texto traducido al idioma base, o el original si ya está en él.
+            dict: {'original_text': ..., 'original_lang': ..., 'base_text': ..., 'base_lang': ..., 'final_text': ..., 'final_lang': ...}
         """
-        original_lang = self.detect_language(input_text)
-        
-        if original_lang != self.base_language:
-            # Traducir al idioma base
-            processed_text, _ = self.translate(input_text, from_lang=original_lang, to_lang=self.base_language)
-            return processed_text, original_lang  # Devolver texto traducido y idioma original
+        detected_lang = self.detect_language(input_text)
+        base_lang = self.base_language
+
+        # Paso 1: Traducir al idioma base si es necesario
+        if detected_lang != base_lang:
+            base_text = self.translate(input_text, from_lang=detected_lang, to_lang=base_lang)
         else:
-            return input_text, original_lang  # Ya está en el idioma base, devolver tal cual
+            base_text = input_text
+
+        # Paso 2: Si el idioma base es distinto al del usuario y se requiere respuesta en el idioma original, traducir de vuelta
+        # (Esto depende de la integración, aquí dejamos la opción para hacerlo)
+        # Por defecto, asumimos que la salida final debe estar en el idioma original si no es igual al idioma base
+        if detected_lang != base_lang:
+            final_text = self.translate(base_text, from_lang=base_lang, to_lang=detected_lang)
+            final_lang = detected_lang
+        else:
+            final_text = base_text
+            final_lang = base_lang
+
+        return {
+            'original_text': input_text,
+            'original_lang': detected_lang,
+            'base_text': base_text,
+            'base_lang': base_lang,
+            'final_text': final_text,
+            'final_lang': final_lang
+        }
