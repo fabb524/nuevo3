@@ -1,0 +1,96 @@
+def __init__(self, idioma='es'):
+    self.idioma = idioma  # 'es' o 'en'
+    logging.info("Cerebro Emergente inicializado")
+
+def detectar_idioma(self, texto):
+    # Simple detección por keywords, mejorable con NLP
+    if re.search(r'\b(what|how|cpr|emergency|bleeding|choking)\b', texto.lower()):
+        return 'en'
+    return 'es'
+
+def detectar_tipo_emergencia(self, texto):
+    t = texto.lower()
+    if re.search(r'\b(rcp|cpr|cardiopulmonar)\b', t):
+        return 'rcp'
+    elif re.search(r'\b(atragantamiento|choking)\b', t):
+        return 'atragantamiento'
+    elif re.search(r'\b(hemorragia|bleeding|sangrado)\b', t):
+        return 'hemorragia'
+    elif re.search(r'\b(shock)\b', t):
+        return 'shock'
+    return 'general'
+
+def buscar_fuente_oficial(self, tema):
+    """
+    Simulación de búsqueda web priorizando fuentes oficiales.
+    Para un sistema real, aquí podrías integrar requests + BeautifulSoup,
+    o una API tipo Bing/Google Custom Search con filtros.
+    """
+    # 'hemorragia': "La OMS y la Cruz Roja aconsejan aplicar presión directa con un paño limpio y elevar la zona afectada. Fuente: OMS/Cruz Roja.",
+        'shock': "St John Ambulance indica mantener a la persona recostada, abrigada y llamar a emergencias. Fuente: St John Ambulance.",
+        'general': "Siempre llama al número local de emergencias y sigue protocolos oficiales. Fuente: CDC/OMS."
+    }
+    return ejemplos.get(tema, ejemplos['general'])
+
+def responder_chat(self, pregunta, pais='default'):
+    """
+    Flujo tipo chat: analiza, explica paso a paso, cita fuente oficial,
+    incluye disclaimer, autoevaluación y cierre motivador.
+    """
+    idioma = self.detectar_idioma(pregunta)
+    self.idioma = idioma
+    tipo = self.detectar_tipo_emergencia(pregunta)
+    fuente = self.buscar_fuente_oficial(tipo)
+   2. Comprueba si la persona responde (háblale y sacúdela suavemente).",
+            f"3. Llama al número de emergencias ({num_emergencia}).",
+            "4. Inicia compresiones torácicas (100-120 por minuto, profundidad 5-6 cm). al número de emergencias ({num_emergencia})."
+        ],
+        'hemorragia': [
+            "1. Lava tus manos si es posible.",
+            "2. Aplica presión directa con un paño o gasa limpia.",
+            "3. Eleva la zona afectada si puedes.",
+            f"4. Llama al número de emergencias ({num_emergencia}) si el sangrado no se detiene."
+        ],
+        'shock': [
+            "1. Acuesta a la persona y eleva las piernas.",
+            "2. Abrígala y tranquilízala.",
+            "3. No le des nada de beber.",
+            f"4. Llama al número de emergencias ({num_emergencia})."
+        ],
+        'general': [
+            "1. Evalúa la seguridad de la escena.",
+            f"2. Llama al número de emergencias ({num_emergencia}).",
+            "3. Aplica primeros auxilios básicos según la situación."
+        ]
+    }
+
+    # Disclaimer
+    disclaimer = (
+        "Recuerda: Esto es solo una práctica educativa."
+        " En una emergencia real, llama inmediatamente a los servicios de emergencia y sigue instrucciones profesionales."
+    )
+    # Autoevaluación
+    autoevaluacion = {
+        'rcp': "¿Cuál es el primer paso que harías antes de iniciar RCP?",
+        'atragantamiento': "¿Cuándo deberías aplicar la maniobra de Heimlich?",
+        'hemorragia': "¿Por qué es importante elevar la zona afectada?",
+        'shock': "¿Por qué no se debe dar líquidos a una persona en shock?",
+        'general': "¿Cuál es el número de emergencias en tu país?"
+    }
+    # Cierre motivador
+    cierre = (
+        "¡Excelente trabajo! Practicar estos pasos te ayuda a estar preparado/a. "
+        "¿Te gustaría simular otro escenario?"
+    )
+
+    # Respuesta estructurada
+    respuesta = f"\n{'-'*40}\n"
+    respuesta += f" Cerebro Emergente de Helpie:\n"
+    respuesta += f"{fuente}\n\n"
+    respuesta += "Pasos educativos:\n"
+    respuesta += '\n'.join(pasos.get(tipo, pasos['general'])) + '\n\n'
+    respuesta += f"{disclaimer}\n\n"
+    respuesta += f"Autoevaluación: {autoevaluacion.get(tipo, autoevaluacion['general'])}\n"
+    respuesta += f"{cierre}\n"
+    respuesta += f"{'-'*40}\n"
+    return respuesta
